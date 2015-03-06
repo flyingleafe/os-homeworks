@@ -1,10 +1,16 @@
-all: libhelpers.so
+CC=gcc
+LIBDIR=.
+CFLAGS=-Wall -fPIC
+LDFLAGS=
+LIBRARY=helpers
 
-libhelpers.so: libhelpers.o
-	gcc -o libhelpers.so -shared libhelpers.o
+all: lib$(LIBRARY).so
 
-libhelpers.o:
-	gcc -o libhelpers.o -c -fPIC helpers.c
+lib$(LIBRARY).so: $(LIBRARY).o
+	$(CC) -o $@ $(LDFLAGS) -shared $<
+
+$(LIBRARY).o:
+	$(CC) -o $@ -c $(CFLAGS) $(LIBRARY).c
 
 clean:
-	rm -f libhelpers.o libhelpers.so
+	rm -f lib$(LIBRARY).so $(LIBRARY).o

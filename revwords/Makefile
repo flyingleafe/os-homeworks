@@ -2,15 +2,15 @@ CC=gcc
 LIBDIR=../lib
 CFLAGS=-I$(LIBDIR)
 LDFLAGS=-L$(LIBDIR) -lhelpers
-PROGRAM=cat
+PROGRAM=revwords
 
 all: $(PROGRAM)
 
 $(PROGRAM): $(PROGRAM).o libhelpers
-	$(CC) -o $@ $(LDFLAGS) $<
+	$(CC) -o $@ $(LDFLAGS) $(PROGRAM).o
 
 $(PROGRAM).o:
-	$(CC) -o $@ -c $(CFLAGS) $(PROGRAM).c
+	$(CC) -o $@ -c $(CFLAGS) $(PROGRAM).c 
 
 libhelpers:
 	$(MAKE) -C $(LIBDIR)

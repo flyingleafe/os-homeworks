@@ -46,3 +46,34 @@ ssize_t write_(int fd, void* buf, size_t count) {
         count -= res;
     }
 }
+
+ssize_t read_until(int fd, void* buf, size_t count, char delimeter) {
+    int res = 0;
+    int rres = 0;
+    while(1) {
+        res = read(fd, buf, count);
+        
+        int i; 
+        for(i = 0; i < res; i++) {
+            if(((char*) buf)[i] == delimeter) {
+                return rres + i;
+            }
+        }
+        
+        if(res == count) {
+            return rres + res;
+        }
+
+        if(res == -1) {
+           return -1;
+        }
+        
+        if(res == 0) {
+            return rres;
+        }
+
+        rres += res;
+        buf += res;
+        count -= res;
+    }
+}
