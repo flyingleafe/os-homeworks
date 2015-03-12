@@ -17,3 +17,4 @@ libhelpers:
 
 clean:
 	rm -f $(PROGRAM) $(PROGRAM).o
+	$(MAKE) -C $(LIBDIR) clean

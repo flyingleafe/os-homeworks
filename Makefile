@@ -1,3 +1,8 @@
+EXECUTABLES=cat revwords
+
 all: 
-	$(MAKE) -C cat
-	$(MAKE) -C revwords
+	@$(foreach ex, $(EXECUTABLES), $(MAKE) -C $(ex);)
+
+clean:
+	@$(foreach ex, $(EXECUTABLES), $(MAKE) -C $(ex) clean;)
+
