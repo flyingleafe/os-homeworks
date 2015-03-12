@@ -1,14 +1,13 @@
 CC=gcc
 LIBDIR=../lib
-CFLAGS=-I$(LIBDIR)
-LDFLAGS=-L$(LIBDIR) -lhelpers
+CFLAGS=-I$(LIBDIR) -ggdb
+LDFLAGS=-Wl,-rpath,$(LIBDIR) -L$(LIBDIR) -lhelpers
 PROGRAM=revwords
 
 all: $(PROGRAM)
 
 $(PROGRAM): $(PROGRAM).o libhelpers
-	$(CC) -o $@ $(LDFLAGS) $(PROGRAM).o
-
+	$(CC) -o $@ $< $(LDFLAGS) 
 $(PROGRAM).o:
 	$(CC) -o $@ -c $(CFLAGS) $(PROGRAM).c 
 
