@@ -1,12 +1,5 @@
-#include <errno.h>
 #include <unistd.h>
-#include <string.h>
 #include <helpers.h>
-
-void report_error() {
-    char* err = strerror(errno);
-    write_(STDERR_FILENO, err, strlen(err) * sizeof(char));
-}
 
 int main(int argc, char* argv[]) {
     char buf[4096];
@@ -25,7 +18,7 @@ int main(int argc, char* argv[]) {
             report_error();
             return 1;
         }
-        
+
         if(rres < sizeof(buf)) {
             return 0;
         }
