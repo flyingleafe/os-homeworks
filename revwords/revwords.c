@@ -19,7 +19,7 @@ void reverse(char* buf, int len) {
 }
 
 int main(int argc, char* argv[]) {
-    char buf[4096];
+    char buf[5000];
     ssize_t rres = 0;
     ssize_t wres = 0;
     int i = 0;
@@ -46,6 +46,7 @@ int main(int argc, char* argv[]) {
 
         // write all the words in buffer
         offset = 0;
+        char has_space = 0;
         for (i = 0; i < rres; i++) {
             if(buf[i] == ' ') {
                 reverse(buf + offset * sizeof(char), i - offset);
@@ -54,13 +55,17 @@ int main(int argc, char* argv[]) {
                 CATCH_IO(wres);
 
                 offset = i;
+                has_space = 1;
             }
         }
 
+        // if we had space and written something,
         // copy the rest of buffer in the beginning
-        rres -= (offset + 1) * sizeof(char);
-        if(rres > 0) {
-            memmove(buf, buf + (offset + 1) * sizeof(char), rres);
+        if (has_space) {
+            rres -= (offset + 1) * sizeof(char);
+            if(rres > 0) {
+                memmove(buf, buf + (offset + 1) * sizeof(char), rres);
+            }
         }
     }
 }
