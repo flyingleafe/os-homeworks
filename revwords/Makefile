@@ -3,6 +3,7 @@ LIBDIR=../lib
 CFLAGS=-I$(LIBDIR) -ggdb
 LDFLAGS=-L$(LIBDIR) -lhelpers
 PROGRAM=revwords
+UNAME=$(shell uname -s)
 
 ifeq ($(UNAME), Linux)
 	LDFLAGS += -Wl,-rpath,$(LIBDIR) 
