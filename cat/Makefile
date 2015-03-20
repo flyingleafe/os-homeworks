@@ -1,8 +1,13 @@
-CC=gcc
-LIBDIR=../lib
-CFLAGS=-I$(LIBDIR)
-LDFLAGS=-Wl,-rpath,$(LIBDIR) -L$(LIBDIR) -lhelpers  
-PROGRAM=cat
+CC = gcc
+LIBDIR = ../lib
+CFLAGS = -I$(LIBDIR)
+UNAME = $(shell uname -s)
+LDFLAGS = -L$(LIBDIR) -lhelpers
+PROGRAM = cat
+
+ifeq ($(UNAME), Linux)
+	LDFLAGS += -Wl,-rpath,$(LIBDIR)
+endif
 
 all: $(PROGRAM)
 
