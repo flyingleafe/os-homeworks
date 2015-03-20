@@ -1,8 +1,12 @@
 CC=gcc
 LIBDIR=../lib
 CFLAGS=-I$(LIBDIR) -ggdb
-LDFLAGS=-Wl,-rpath,$(LIBDIR) -L$(LIBDIR) -lhelpers
+LDFLAGS=-L$(LIBDIR) -lhelpers
 PROGRAM=revwords
+
+ifeq ($(UNAME), Linux)
+	LDFLAGS += -Wl,-rpath,$(LIBDIR) 
+endif
 
 all: $(PROGRAM)
 

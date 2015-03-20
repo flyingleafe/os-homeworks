@@ -1,8 +1,13 @@
 CC=gcc
-LIBDIR=.
+LIBDIR=$(shell pwd)
 CFLAGS=-Wall -fPIC
 LDFLAGS=
 LIBRARY=helpers
+UNAME = $(shell uname -s)
+
+ifeq ($(UNAME), Darwin)
+	LDFLAGS += -install_name $(LIBDIR)/lib$(LIBRARY).so
+endif
 
 all: lib$(LIBRARY).so
 
