@@ -3,11 +3,6 @@
 #include <helpers.h>
 #include <string.h>
 
-#define CATCH_IO(res) if (res == -1) {          \
-        report_error();                         \
-        return 1;                               \
-    }
-
 void reverse(char* buf, int len) {
     int i;
     char t;
@@ -54,7 +49,7 @@ int main(int argc, char* argv[]) {
 
                 CATCH_IO(wres);
 
-                offset = i;
+                offset = i + 1;
                 has_space = 1;
             }
         }
@@ -62,9 +57,9 @@ int main(int argc, char* argv[]) {
         // if we had space and written something,
         // copy the rest of buffer in the beginning
         if (has_space) {
-            rres -= (offset + 1) * sizeof(char);
+            rres -= offset * sizeof(char);
             if(rres > 0) {
-                memmove(buf, buf + (offset + 1) * sizeof(char), rres);
+                memmove(buf, buf + offset * sizeof(char), rres);
             }
         }
     }
