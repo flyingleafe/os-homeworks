@@ -1,6 +1,6 @@
 #include <sys/types.h>
 #include <sys/uio.h>
-#include <unistd.h>
+#include <sys/wait.h>
 #include <errno.h>
 #include <string.h>
 #include "helpers.h"
@@ -83,4 +83,35 @@ ssize_t read_until(int fd, void* buf, size_t count, char delimeter) {
 void report_error() {
     char* err = strerror(errno);
     write_(STDERR_FILENO, err, strlen(err) * sizeof(char));
+}
+
+int spawn(const char * file, char * const argv []) {
+    int pid = fork();
+
+    if (pid == -1) {
+        report_error();
+        return -1;
+    }
+
+    if (pid == 0) {
+        int s = execvp(file, argv);
+
+        if (s == -1) {
+            report_error();
+            return -1;
+        }
+
+    } else {
+        int status;
+        wait(&status);
+
+        if(!WIFEXITED(status)) {
+            report_error();
+            return -1;
+        }
+
+        return WEXITSTATUS(status);
+    }
+
+    return -1;
 }
