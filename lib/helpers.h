@@ -3,9 +3,13 @@
 
 #include <unistd.h>
 
-#define CATCH_IO(res) if (res == -1) {          \
+#define CATCH_IO(res) if ((res) == -1) {        \
         report_error();                         \
         return 1;                               \
+    }
+
+#define RETHROW_IO(res) if ((res) == -1) {      \
+        return -1;                              \
     }
 
 

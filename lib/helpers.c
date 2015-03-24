@@ -88,30 +88,21 @@ void report_error() {
 int spawn(const char * file, char * const argv []) {
     int pid = fork();
 
-    if (pid == -1) {
-        report_error();
-        return -1;
-    }
+    RETHROW_IO(pid);
 
     if (pid == 0) {
-        int s = execvp(file, argv);
-
-        if (s == -1) {
-            report_error();
-            return -1;
-        }
-
+        RETHROW_IO(execvp(file, argv));
     } else {
         int status;
-        wait(&status);
+        RETHROW_IO(wait(&status));
 
         if(!WIFEXITED(status)) {
-            report_error();
             return -1;
         }
 
         return WEXITSTATUS(status);
     }
 
+    // should never happen
     return -1;
 }
