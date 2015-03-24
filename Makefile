@@ -1,8 +1,7 @@
-EXECUTABLES=cat revwords
+EXECUTABLES=$(shell echo */)
 
-all: 
+all:
 	@$(foreach ex, $(EXECUTABLES), $(MAKE) -C $(ex);)
 
 clean:
 	@$(foreach ex, $(EXECUTABLES), $(MAKE) -C $(ex) clean;)
-
