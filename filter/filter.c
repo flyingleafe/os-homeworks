@@ -11,10 +11,11 @@ int suppress_output(int fd) {
     int dev_null = open("/dev/null", O_WRONLY);
     RETHROW_IO(dev_null);
 
-    int storage = dup(STDOUT_FILENO);
+    int storage = dup(fd);
     RETHROW_IO(storage);
 
-    RETHROW_IO(dup2(dev_null, STDOUT_FILENO));
+    RETHROW_IO(dup2(dev_null, fd));
+    RETHROW_IO(close(dev_null));
     return storage;
 }
 
