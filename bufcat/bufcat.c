@@ -16,4 +16,5 @@ int main(int argc, char *argv []) {
             return 0;
         }
     }
+    buf_free(buf);
 }
