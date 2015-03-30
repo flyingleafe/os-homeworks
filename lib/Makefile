@@ -2,20 +2,29 @@ CC=gcc
 LIBDIR=$(shell pwd)
 CFLAGS=-Wall -fPIC
 LDFLAGS=
-LIBRARY=helpers
 UNAME = $(shell uname -s)
 
+LIBRARIES=helpers bufio
+
 ifeq ($(UNAME), Darwin)
-	LDFLAGS += -install_name $(LIBDIR)/lib$(LIBRARY).so
+	LDFLAGS = -install_name $(LIBDIR)/lib_LIBNAME.so
 endif
 
-all: lib$(LIBRARY).so
+.PHONY: all
+all: $(foreach lib, $(LIBRARIES), lib$(lib).so )
 
-lib$(LIBRARY).so: $(LIBRARY).o
-	$(CC) -o $@ $(LDFLAGS) -shared $<
+define LIB_template
 
-$(LIBRARY).o:
-	$(CC) -o $@ -c $(CFLAGS) $(LIBRARY).c
+lib$(1).so: $(1).o
+	$(CC) -o $$@ $$(subst _LIBNAME,$(1),$(LDFLAGS)) -shared $$<
 
+$(1).o:
+	$(CC) -o $$@ -c $(CFLAGS) $(1).c
+
+endef
+
+$(foreach lib, $(LIBRARIES), $(eval $(call LIB_template,$(lib))))
+
+.PHONY: clean
 clean:
-	rm -f lib$(LIBRARY).so $(LIBRARY).o
+	$(foreach lib, $(LIBRARIES), rm -f lib$(lib).so $(lib).o;)
