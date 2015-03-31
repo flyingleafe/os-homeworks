@@ -23,20 +23,26 @@ struct buf_t {
 };
 
 buf_t *buf_new(size_t capacity) {
-    buf_t* newbuf = (buf_t*) malloc(2 * sizeof(size_t) + sizeof(void *) + capacity);
+    buf_t* newbuf = (buf_t*) malloc(sizeof(buf_t));
 
     if (newbuf == NULL) {
         return NULL;
     }
 
+    newbuf->data = malloc(capacity);
+
+    if (newbuf->data == NULL) {
+        return NULL;
+    }
+
     newbuf->capacity = capacity;
     newbuf->size = 0;
-    newbuf->data = &(newbuf->data) + sizeof(void *);
     return newbuf;
 }
 
 void buf_free(buf_t *buf) {
     ABORT_IF(buf == NULL);
+    free(buf->data);
     free(buf);
 }
 
