@@ -32,6 +32,7 @@ buf_t *buf_new(size_t capacity) {
     newbuf->data = malloc(capacity);
 
     if (newbuf->data == NULL) {
+        free(newbuf);
         return NULL;
     }
 
