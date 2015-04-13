@@ -23,7 +23,15 @@ $(1).o:
 
 endef
 
-$(foreach lib, $(LIBRARIES), $(eval $(call LIB_template,$(lib))))
+libhelpers.so: helpers.o
+	$(CC) -o $@ $(subst _LIBNAME,helpers,$(LDFLAGS)) -shared $<
+
+
+libbufio.so: bufio.o
+	$(CC) -o $@ $(subst _LIBNAME,bufio,$(LDFLAGS)) -L. -lhelpers -shared $<
+
+
+# $(foreach lib, $(LIBRARIES), $(eval $(call LIB_template,$(lib))))
 
 .PHONY: clean
 clean:

@@ -109,3 +109,45 @@ ssize_t buf_flush(fd_t fd, buf_t *buf, size_t required) {
     RETHROW_IO(res);
     return written;
 }
+
+ssize_t buf_getline(fd_t fd, buf_t *buf, char *dest) {
+    ABORT_IF(buf == NULL);
+    int len = 0;
+
+    while(1) {
+        for (int i = 0; i < buf->size; i++) {
+            if (((char*)buf->data)[i] == '\n') {
+                memcpy(dest, buf->data, i + 1);
+                len += i + 1;
+                return len;;
+            }
+        }
+        memcpy(dest, buf->data, buf->size);
+        dest += buf->size;
+        len += buf->size;
+        buf->size = 0;
+        RETHROW_IO(buf_fill(fd, buf, 1));
+    }
+}
+
+ssize_t buf_write(fd_t fd, buf_t *buf, char *src, size_t len) {
+    int written = 0;
+
+    while(len > 0) {
+        if (len <= buf->size) {
+            int wr = write_(fd, buf->data, len);
+            RETHROW_IO(wr);
+            return written + wr;
+        }
+        len -= buf->size;
+        int wr = buf_flush(fd, buf, buf->size);
+        RETHROW_IO(wr);
+        written += wr;
+
+        int l = buf->capacity < len ? buf->capacity : len;
+        memcpy(buf->data, src, l);
+        buf->size = l;
+    }
+
+    return written;
+}
