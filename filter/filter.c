@@ -42,6 +42,7 @@ int process_string(char * src, size_t len, int argc, char * pargs[]) {
 
     RETHROW_IO(restore_output(STDOUT_FILENO, stdout_copy));
     RETHROW_IO(restore_output(STDERR_FILENO, stderr_copy));
+    RETHROW_IO(res);
 
     if(res == 0) {
         buf2[len] = '\n';
@@ -56,8 +57,9 @@ int main(int argc, char * argv []) {
         return 0;
     }
 
-    char** pargs = (char **) calloc(argc, sizeof(char *));
+    char** pargs = (char **) calloc(argc + 1, sizeof(char *));
     memcpy(pargs, argv + 1, (argc - 1) * sizeof(char *));
+    pargs[argc + 1] = NULL;
 
     int rres = 0;
     int wres = 0;

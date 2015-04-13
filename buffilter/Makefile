@@ -1,7 +1,7 @@
 CC=gcc
 LIBDIR=../lib
 CFLAGS=-I$(LIBDIR) -ggdb
-LDFLAGS=-L$(LIBDIR) -lhelpers
+LDFLAGS=-L$(LIBDIR) -lhelpers -lbufio
 PROGRAM=buffilter
 UNAME=$(shell uname -s)
 

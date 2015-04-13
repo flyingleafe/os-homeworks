@@ -117,36 +117,54 @@ ssize_t buf_getline(fd_t fd, buf_t *buf, char *dest) {
     while(1) {
         for (int i = 0; i < buf->size; i++) {
             if (((char*)buf->data)[i] == '\n') {
-                memcpy(dest, buf->data, i + 1);
-                len += i + 1;
-                return len;;
+                memcpy(dest, buf->data, i);
+                buf->size -= i + 1;
+
+                if (buf->size > 0) {
+                    memmove(buf->data, buf->data + i + 1, buf->size);
+                }
+
+                return len + i;
             }
         }
-        memcpy(dest, buf->data, buf->size);
-        dest += buf->size;
-        len += buf->size;
-        buf->size = 0;
-        RETHROW_IO(buf_fill(fd, buf, 1));
+
+        if (buf->size > 0) {
+            memcpy(dest, buf->data, buf->size);
+            dest += buf->size;
+            len += buf->size;
+            buf->size = 0;
+        }
+
+        int res = buf_fill(fd, buf, 1);
+        RETHROW_IO(res);
+
+        // got EOF
+        if (res < 1) {
+            return len;
+        }
     }
 }
 
 ssize_t buf_write(fd_t fd, buf_t *buf, char *src, size_t len) {
     int written = 0;
 
-    while(len > 0) {
-        if (len <= buf->size) {
-            int wr = write_(fd, buf->data, len);
-            RETHROW_IO(wr);
-            return written + wr;
-        }
-        len -= buf->size;
+    while(len > buf->capacity - buf->size) {
+        int rest = buf->capacity - buf->size;
+        int l = rest < len ? rest : len;
+
+        memcpy(buf->data + buf->size, src, l);
+        buf->size += l;
+        src += l;
+        len -= l;
         int wr = buf_flush(fd, buf, buf->size);
         RETHROW_IO(wr);
         written += wr;
+    }
 
-        int l = buf->capacity < len ? buf->capacity : len;
-        memcpy(buf->data, src, l);
-        buf->size = l;
+    if(len > 0) {
+        memcpy(buf->data + buf->size, src, len);
+        buf->size += len;
+        written += len;
     }
 
     return written;

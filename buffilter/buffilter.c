@@ -1,11 +1,15 @@
 #include <helpers.h>
+#include <bufio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
 
-char buf[5000];
-char buf2[5000];
+char s[5000];
+char s2[5000];
+
+buf_t* buf;
+buf_t* buf2;
 
 int suppress_output(int fd) {
     int dev_null = open("/dev/null", O_WRONLY);
@@ -26,10 +30,10 @@ int restore_output(int fd, int storage) {
 }
 
 int process_string(char * src, size_t len, int argc, char * pargs[]) {
-    memcpy(buf2, src, len * sizeof(char));
-    buf2[len] = '\0';
+    memcpy(s2, src, len * sizeof(char));
+    s2[len] = '\0';
 
-    pargs[argc - 1] = buf2;
+    pargs[argc - 1] = s2;
 
     int res = 0;
 
@@ -42,72 +46,52 @@ int process_string(char * src, size_t len, int argc, char * pargs[]) {
 
     RETHROW_IO(restore_output(STDOUT_FILENO, stdout_copy));
     RETHROW_IO(restore_output(STDERR_FILENO, stderr_copy));
+    RETHROW_IO(res);
 
     if(res == 0) {
-        buf2[len] = '\n';
-        RETHROW_IO(write_(STDOUT_FILENO, buf2, (len + 1) * sizeof(char)));
+        s2[len] = '\n';
+        RETHROW_IO(buf_write(STDOUT_FILENO, buf2, s2, len + 1));
     }
     return 0;
 }
 
 int main(int argc, char * argv []) {
     if (argc < 2) {
-        write_(STDIN_FILENO, "Usage:\n    ./filter <program_name> [program_args ...]\n", 54);
+        write_(STDIN_FILENO, "Usage:\n    ./buffilter <program_name> [program_args ...]\n", 57);
         return 0;
     }
 
-    char** pargs = (char **) calloc(argc, sizeof(char *));
+    char** pargs = (char **) calloc(argc + 1, sizeof(char *));
     memcpy(pargs, argv + 1, (argc - 1) * sizeof(char *));
+    pargs[argc] = NULL;
 
     int rres = 0;
-    int wres = 0;
-    int i = 0;
-    int j = 0;
+    ssize_t len = 0;
+
+    buf = buf_new(4096);
+    buf2 = buf_new(4096);
 
     while (1) {
-        ssize_t offset = rres;
-        rres = read_until(STDIN_FILENO, buf + offset * sizeof(char), sizeof(buf) - offset * sizeof(char), '\n');
+        len = buf_getline(STDIN_FILENO, buf, s);
 
-        // we reached EOF or encountered an error: write the rest of buffer and halt.
-        if (rres == 0 || rres == -1) {
-
-            wres = process_string(buf, offset, argc, pargs);
-
-            CATCH_IO(wres);
-            CATCH_IO(rres);
-
-            if (rres == 0) {
-                return 0;
-            }
+        if (len == 0 || len == -1) {
+            break;
         }
 
-        rres += offset;
+        rres = process_string(s, len, argc, pargs);
 
-        // write all the lines in buffer
-        offset = 0;
-        char has_delim = 0;
-        for (i = 0; i < rres; i++) {
-            if(buf[i] == '\n') {
-                wres = process_string(buf + offset * sizeof(char), i - offset, argc, pargs);
-
-                CATCH_IO(wres);
-
-                offset = i + 1;
-                has_delim = 1;
-            }
-        }
-
-        // if we had space and written something,
-        // copy the rest of buffer in the beginning
-        if (has_delim) {
-            rres -= offset * sizeof(char);
-            if(rres > 0) {
-                memmove(buf, buf + offset * sizeof(char), rres);
-            }
+        if (rres == -1) {
+            break;
         }
     }
 
+    buf_flush(STDOUT_FILENO, buf2, buf_size(buf2));
+
+    buf_free(buf);
+    buf_free(buf2);
     free(pargs);
+    CATCH_IO(rres);
+    CATCH_IO(len);
 
     return 0;
 }
