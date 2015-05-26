@@ -1,9 +1,37 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include "helpers.h"
+
+struct execargs_t {
+    const char *name;
+    char **argv;
+    int in_fd;
+    int out_fd;
+};
+
+execargs_t* get_execargs(const char *name, char *argv[], int in_fd, int out_fd) {
+    execargs_t* ea = (execargs_t*) malloc(sizeof(execargs_t));
+
+    if (ea == NULL) {
+        return NULL;
+    }
+
+    ea->name = name;
+    ea->argv = argv;
+    ea->in_fd = in_fd;
+    ea->out_fd = out_fd;
+    return ea;
+}
+
+void free_execargs(execargs_t* ea) {
+    free(ea);
+}
+
 
 ssize_t read_(int fd, void* buf, size_t count) {
     int res = 0;
@@ -105,4 +133,44 @@ int spawn(const char * file, char * const argv []) {
 
     // should never happen
     return -1;
+}
+
+int redirect_fd(int to_fd, int from_fd) {
+    int storage = dup(from_fd);
+    RETHROW_IO(storage);
+
+    RETHROW_IO(dup2(to_fd, from_fd));
+    return storage;
+}
+
+int suppress_output(int fd) {
+    int dev_null = open("/dev/null", O_WRONLY);
+    RETHROW_IO(dev_null);
+
+    int storage = redirect_fd(dev_null, fd);
+    RETHROW_IO(close(dev_null));
+    return storage;
+}
+
+int restore_output(int fd, int storage) {
+    RETHROW_IO(dup2(storage, fd));
+    RETHROW_IO(close(storage));
+    return 0;
+}
+
+int exec(execargs_t* args) {
+    int pid = fork();
+    RETHROW_IO(pid);
+
+    if (pid == 0) {
+        if (args->in_fd != -1) {
+            RETHROW_IO(redirect_fd(args->in_fd, STDIN_FILENO));
+        }
+        if (args->out_fd != -1) {
+            RETHROW_IO(redirect_fd(args->out_fd, STDOUT_FILENO));
+        }
+        RETHROW_IO(execvp(args->name, args->argv));
+    }
+
+    return pid;
 }

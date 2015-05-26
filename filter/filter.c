@@ -7,24 +7,6 @@
 char buf[5000];
 char buf2[5000];
 
-int suppress_output(int fd) {
-    int dev_null = open("/dev/null", O_WRONLY);
-    RETHROW_IO(dev_null);
-
-    int storage = dup(fd);
-    RETHROW_IO(storage);
-
-    RETHROW_IO(dup2(dev_null, fd));
-    RETHROW_IO(close(dev_null));
-    return storage;
-}
-
-int restore_output(int fd, int storage) {
-    RETHROW_IO(dup2(storage, fd));
-    RETHROW_IO(close(storage));
-    return 0;
-}
-
 int process_string(char * src, size_t len, int argc, char * pargs[]) {
     memcpy(buf2, src, len * sizeof(char));
     buf2[len] = '\0';
