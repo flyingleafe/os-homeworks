@@ -3,6 +3,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <errno.h>
 #include <string.h>
 #include "helpers.h"
@@ -173,4 +174,54 @@ int exec(execargs_t* args) {
     }
 
     return pid;
+}
+
+int pipe_parent_id;
+
+void runpiped_sighandler(int sig) {
+    if (pipe_parent_id != getpid()) {
+        _exit(0);
+    } else if (sig == SIGINT) {
+        kill(-pipe_parent_pid, SIGQUIT);
+    }
+}
+
+int runpiped(execargs_t** programs, size_t n) {
+
+    pipe_parent_id = getpid();
+    signal(SIGINT & SIGQUIT, runpiped_sighandler);
+
+    size_t i;
+    for (i = 1; i < n; i++) {
+        RETHROW_IO(pipe(*programs[i]->in_fd));
+    }
+
+    // reposition input/output file descriptors for a program
+    for (i = 0; i < n - 1; i++) {
+        programs[i]->out_fd = programs[i + 1]->out_fd;
+    }
+    // last program writes to stdout
+    programs[n - 1]->out_fd = -1;
+
+    // start child processes
+    for (i = 0; i < n; i++) {
+        RETHROW_IO(exec(programs[i]));
+    }
+
+    // wait for them
+    for (i = 0; i < n; i++) {
+        int status;
+        while (1) {
+            int child = wait(&status);
+            if (child > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+                break;
+            } else if (child == -1 && errno == EINTR) {
+                continue;
+            } else {
+                return -1;
+            }
+        }
+    }
+
+    return 0;
 }
