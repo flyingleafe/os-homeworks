@@ -182,7 +182,7 @@ void runpiped_sighandler(int sig) {
     if (pipe_parent_id != getpid()) {
         _exit(0);
     } else if (sig == SIGINT) {
-        kill(-pipe_parent_pid, SIGQUIT);
+        kill(-pipe_parent_id, SIGQUIT);
     }
 }
 
@@ -193,7 +193,7 @@ int runpiped(execargs_t** programs, size_t n) {
 
     size_t i;
     for (i = 1; i < n; i++) {
-        RETHROW_IO(pipe(*programs[i]->in_fd));
+        RETHROW_IO(pipe(&programs[i]->in_fd));
     }
 
     // reposition input/output file descriptors for a program
