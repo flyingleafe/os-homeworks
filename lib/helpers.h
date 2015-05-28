@@ -15,8 +15,11 @@
 struct execargs_t;
 typedef struct execargs_t execargs_t;
 
-execargs_t* get_execargs(const char *name, char *argv[], int in_fd, int out_fd);
+execargs_t* get_execargs(size_t argc);
 void free_execargs(execargs_t* ea);
+char* get_arg(execargs_t* ea, int i);
+void set_arg(execargs_t* ea, int i, char* arg);
+size_t get_argc(execargs_t* ea);
 
 ssize_t read_(int fd, void* buf, size_t count);
 ssize_t write_(int fd, void* buf, size_t count);

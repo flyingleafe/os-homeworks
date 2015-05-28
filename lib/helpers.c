@@ -5,27 +5,31 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 #include "helpers.h"
 
 struct execargs_t {
-    const char *name;
-    char **argv;
     int in_fd;
     int out_fd;
+    int pid;
+
+    size_t argc;
+    char* argv[];
 };
 
-execargs_t* get_execargs(const char *name, char *argv[], int in_fd, int out_fd) {
-    execargs_t* ea = (execargs_t*) malloc(sizeof(execargs_t));
+execargs_t* get_execargs(size_t argc) {
+    execargs_t* ea = (execargs_t*) malloc(sizeof(execargs_t) + (argc + 1) * sizeof(char*));
 
     if (ea == NULL) {
         return NULL;
     }
 
-    ea->name = name;
-    ea->argv = argv;
-    ea->in_fd = in_fd;
-    ea->out_fd = out_fd;
+    ea->argc = argc;
+    ea->argv[argc] = NULL;
+    ea->pid = -1;
+    ea->in_fd = -1;
+    ea->out_fd = -1;
     return ea;
 }
 
@@ -33,6 +37,17 @@ void free_execargs(execargs_t* ea) {
     free(ea);
 }
 
+char* get_arg(execargs_t* ea, int i) {
+    return ea->argv[i];
+}
+
+void set_arg(execargs_t* ea, int i, char* arg) {
+    ea->argv[i] = arg;
+}
+
+size_t get_argc(execargs_t* ea) {
+    return ea->argc;
+}
 
 ssize_t read_(int fd, void* buf, size_t count) {
     int res = 0;
@@ -170,18 +185,28 @@ int exec(execargs_t* args) {
         if (args->out_fd != -1) {
             RETHROW_IO(redirect_fd(args->out_fd, STDOUT_FILENO));
         }
-        RETHROW_IO(execvp(args->name, args->argv));
+        RETHROW_IO(execvp(args->argv[0], args->argv));
     }
 
+    if (args->in_fd != -1) {
+        RETHROW_IO(close(args->in_fd));
+    }
+    if (args->out_fd != -1) {
+        RETHROW_IO(close(args->out_fd));
+    }
+    args->pid = pid;
     return pid;
 }
 
 int pipe_parent_id;
 
 void runpiped_sighandler(int sig) {
+    printf("heeey some signal: %d\n", sig);
     if (pipe_parent_id != getpid()) {
+        printf("child signal!\n");
         _exit(0);
     } else if (sig == SIGINT) {
+        printf("parent signal!\n");
         kill(-pipe_parent_id, SIGQUIT);
     }
 }
@@ -189,7 +214,7 @@ void runpiped_sighandler(int sig) {
 int runpiped(execargs_t** programs, size_t n) {
 
     pipe_parent_id = getpid();
-    signal(SIGINT & SIGQUIT, runpiped_sighandler);
+    signal(SIGINT, runpiped_sighandler);
 
     size_t i;
     for (i = 1; i < n; i++) {
@@ -209,19 +234,26 @@ int runpiped(execargs_t** programs, size_t n) {
     }
 
     // wait for them
-    for (i = 0; i < n; i++) {
-        int status;
-        while (1) {
-            int child = wait(&status);
-            if (child > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-                break;
-            } else if (child == -1 && errno == EINTR) {
-                continue;
-            } else {
-                return -1;
+    int status;
+    while (1) {
+        int child = wait(&status);
+        if (child == -1 && errno == ECHILD) {
+            // no more children left
+            break;
+        } else if (child > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            for (i = 0; i < n; i++) {
+                if (programs[i]->pid != child) {
+                    kill(programs[i]->pid, SIGINT);
+                }
             }
+            break;
+        } else if (child == -1 && errno == EINTR) {
+            continue;
+        } else {
+            return -1;
         }
     }
+
 
     return 0;
 }
