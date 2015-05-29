@@ -25,6 +25,8 @@ ssize_t read_(int fd, void* buf, size_t count);
 ssize_t write_(int fd, void* buf, size_t count);
 ssize_t read_until(int fd, void* buf, size_t count, char delimiter);
 int spawn(const char * file, char * const argv []);
+int suppress_output(int fd);
+int restore_output(int fd, int storage);
 int exec(execargs_t* args);
 int runpiped(execargs_t** programs, size_t n);
 void report_error();
