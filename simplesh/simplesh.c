@@ -62,6 +62,7 @@ execargs_t* parse_program(char** input) {
 int parse_sh(char* input, execargs_t** programs) {
     int i = 0;
 
+    skip_whitespace(&input);
     while (*input) {
         execargs_t* cur = parse_program(&input);
         if (cur == NULL) {
@@ -76,7 +77,13 @@ int parse_sh(char* input, execargs_t** programs) {
 
 int main(int argc, char *argv[]) {
 
-    signal(SIGINT, SIG_IGN);
+    // ignore the SIGINT
+    struct sigaction sa;
+    sa.sa_handler = SIG_IGN;
+    sigemptyset(&sa.sa_mask);
+
+    CATCH_IO(sigaction(SIGINT, &sa, NULL));
+
     char buf[4096];
     execargs_t* programs[4096];
 
@@ -99,8 +106,7 @@ int main(int argc, char *argv[]) {
             int res = runpiped(programs, n);
 
             if (res == -1) {
-                perror("something bad happened:");
-                perror(strerror(errno));
+                perror("Error");
             }
 
             int i, j;
