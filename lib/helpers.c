@@ -334,6 +334,16 @@ int runpiped(execargs_t** programs, size_t n) {
                     unblock_signals(&smask);
                     return -1;
                 }
+                int status;
+                int pid = waitpid(programs[i]->pid, &status, 0);
+
+                if (pid == -1) {
+                    if (errno == ECHILD) {
+                        continue;
+                    }
+                    unblock_signals(&smask);
+                    return -1;
+                }
             }
         }
     }
