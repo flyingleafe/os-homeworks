@@ -5,36 +5,20 @@
 #include <errno.h>
 #include <stdio.h>
 
-void skip_whitespace(char** input) {
-    while((*input)[0] == ' ') {
-        (*input)++;
-    }
-}
-
-size_t parse_word(char* input) {
-    size_t len = 0;
-    while(input[len] != '|' && input[len] != ' ' && input[len] != '\n' && input[len]) {
-        len++;
-    }
-    return len;
-}
-
-execargs_t* parse_program(char** input) {
+execargs_t* parse_program(char* input) {
     size_t argc = 0;
-    char* input2 = *input;
+    char* input2 = input;
 
     // count argc
     while(*input2) {
-        size_t wlen = parse_word(input2);
-        if (wlen == 0 || input2[0] == '|') {
+        input2 += strspn(input2, " ");
+        size_t wlen = strcspn(input2, " \n");
+        if (wlen == 0) {
             break;
         }
-
         input2 += wlen;
-        skip_whitespace(&input2);
         argc++;
     }
-
 
     // return NULL if error, not consuming the input
     if (argc == 0) {
@@ -44,32 +28,34 @@ execargs_t* parse_program(char** input) {
     execargs_t* args = get_execargs(argc);
 
     // read argv
-    int i;
-    for (i = 0; i < argc; i++) {
-        size_t wlen = parse_word(*input);
-        set_arg(args, i, strndup(*input, wlen));
-        *input += wlen;
-        skip_whitespace(input);
+    int i = 0;
+    char* save;
+    char* word = strtok_r(input, " \n", &save);
+
+    while (word != NULL) {
+        set_arg(args, i, word);
+        i++;
+        word = strtok_r(NULL, " \n", &save);
     }
 
-    if ((*input)[0] == '|') {
-        (*input)++;
-        skip_whitespace(input);
-    }
     return args;
 }
 
 int parse_sh(char* input, execargs_t** programs) {
     int i = 0;
 
-    skip_whitespace(&input);
-    while (*input) {
-        execargs_t* cur = parse_program(&input);
-        if (cur == NULL) {
+    char* saveptr;
+    char* prog = strtok_r(input, "|\n", &saveptr);
+    while (prog != NULL) {
+        execargs_t* ea = parse_program(prog);
+
+        if (ea == NULL) {
             break;
         }
-        programs[i] = cur;
+        programs[i] = ea;
+
         i++;
+        prog = strtok_r(NULL, "|\n", &saveptr);
     }
 
     return i;
@@ -85,7 +71,7 @@ int main(int argc, char *argv[]) {
     CATCH_IO(sigaction(SIGINT, &sa, NULL));
 
     char buf[4096];
-    execargs_t* programs[4096];
+    execargs_t* programs[2048];
 
     int rres;
     while (1) {
@@ -109,11 +95,8 @@ int main(int argc, char *argv[]) {
                 perror("Error");
             }
 
-            int i, j;
+            int i;
             for (i = 0; i < n; i++) {
-                for (j = 0; j < get_argc(programs[i]); j++) {
-                    free(get_arg(programs[i], j));
-                }
                 free_execargs(programs[i]);
             }
         }
