@@ -13,7 +13,6 @@ struct execargs_t {
     int in_fd;
     int out_fd;
     int pid;
-
     size_t argc;
     char* argv[];
 };
@@ -176,16 +175,21 @@ int restore_output(int fd, int storage) {
 
 int exec(execargs_t* args) {
     int pid = fork();
-    RETHROW_IO(pid);
 
     if (pid == 0) {
         if (args->in_fd != -1) {
             RETHROW_IO(redirect_fd(args->in_fd, STDIN_FILENO));
+            RETHROW_IO(close(args->in_fd));
         }
         if (args->out_fd != -1) {
             RETHROW_IO(redirect_fd(args->out_fd, STDOUT_FILENO));
+            RETHROW_IO(close(args->out_fd));
         }
-        RETHROW_IO(execvp(args->argv[0], args->argv));
+        int res = execvp(args->argv[0], args->argv);
+        if (res == -1) {
+            // Return errno to set it in parent
+            _exit(errno);
+        }
     }
 
     if (args->in_fd != -1) {
@@ -194,31 +198,54 @@ int exec(execargs_t* args) {
     if (args->out_fd != -1) {
         RETHROW_IO(close(args->out_fd));
     }
-    args->pid = pid;
-    return pid;
+    return args->pid = pid;
 }
 
-int pipe_parent_id;
+int unblock_signals(const sigset_t *smask) {
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 0;
 
-void runpiped_sighandler(int sig) {
-    printf("heeey some signal: %d\n", sig);
-    if (pipe_parent_id != getpid()) {
-        printf("child signal!\n");
-        _exit(0);
-    } else if (sig == SIGINT) {
-        printf("parent signal!\n");
-        kill(-pipe_parent_id, SIGQUIT);
+    siginfo_t siginfo;
+    int s = 0;
+    while(1) {
+        int sig = sigtimedwait(smask, &siginfo, &ts);
+        if (sig == -1) {
+            if (errno != EAGAIN) {
+                s = -1;
+            }
+            break;
+        }
     }
+
+    RETHROW_IO(sigprocmask(SIG_UNBLOCK, smask, NULL));
+    return s;
 }
 
 int runpiped(execargs_t** programs, size_t n) {
 
-    pipe_parent_id = getpid();
-    signal(SIGINT, runpiped_sighandler);
+    sigset_t smask;
+    sigemptyset(&smask);
+    sigaddset(&smask, SIGINT);
+    sigaddset(&smask, SIGCHLD);
+
+    RETHROW_IO(sigprocmask(SIG_BLOCK, &smask, NULL));
 
     size_t i;
     for (i = 1; i < n; i++) {
-        RETHROW_IO(pipe(&programs[i]->in_fd));
+        int s = pipe(&programs[i]->in_fd);
+        if (s == -1) {
+            // unblock signals
+            RETHROW_IO(unblock_signals(&smask));
+
+            // close all previously opened pipes
+            size_t j;
+            for (j = 1; j < i; j++) {
+                RETHROW_IO(close(programs[i]->in_fd));
+                RETHROW_IO(close(programs[i]->out_fd));
+            }
+            return -1;
+        }
     }
 
     // reposition input/output file descriptors for a program
@@ -230,30 +257,92 @@ int runpiped(execargs_t** programs, size_t n) {
 
     // start child processes
     for (i = 0; i < n; i++) {
-        RETHROW_IO(exec(programs[i]));
-    }
+        int pid = exec(programs[i]);
+        if (pid == -1) {
+            // unblock signals
+            RETHROW_IO(unblock_signals(&smask));
 
-    // wait for them
-    int status;
-    while (1) {
-        int child = wait(&status);
-        if (child == -1 && errno == ECHILD) {
-            // no more children left
-            break;
-        } else if (child > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-            for (i = 0; i < n; i++) {
-                if (programs[i]->pid != child) {
-                    kill(programs[i]->pid, SIGINT);
-                }
+            // make sure all pipes are closed
+            for (i = i + 1; i < n; i++) {
+                RETHROW_IO(close(programs[i]->in_fd));
+                RETHROW_IO(close(programs[i]->out_fd));
             }
-            break;
-        } else if (child == -1 && errno == EINTR) {
-            continue;
-        } else {
             return -1;
         }
     }
 
+    // wait for them
+    siginfo_t siginfo;
+    size_t finished = 0;
+    int force_stop = 0;
 
-    return 0;
+    while (1) {
+        int sig = sigwaitinfo(&smask, &siginfo);
+        if (sig == -1) {
+            unblock_signals(&smask);
+            return -1;
+        } else if (sig == SIGCHLD) {
+            int status;
+            // wait for all processes which may be ended
+            while (finished < n) {
+                int pid = waitpid(-1, &status, WNOHANG);
+
+                if (pid == 0) {
+                    break;
+                }
+
+                if (pid == -1) {
+                    if (errno != ECHILD) {
+                        force_stop = errno;
+                    }
+                    break;
+                }
+
+                // mark process as finished
+                for (i = 0; i < n; i++) {
+                    if (programs[i]->pid == pid) {
+                        programs[i]->pid = -1;
+                        break;
+                    }
+                }
+
+                if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+                    // if execve fails, we'll have errno in exit status
+                    force_stop = WEXITSTATUS(status);
+                    break;
+                }
+
+                // check if all processes are finished
+                finished++;
+            }
+
+            if (finished == n || force_stop) {
+                break;
+            }
+        } else if (sig == SIGINT) {
+            force_stop = -1;
+            break;
+        }
+    }
+
+    if (force_stop) {
+        // kill all children
+        for (i = 0; i < n; i++) {
+            if (programs[i]->pid != -1) {
+                int s = kill(programs[i]->pid, SIGKILL);
+                if (s == -1) {
+                    unblock_signals(&smask);
+                    return -1;
+                }
+            }
+        }
+    }
+
+    // clear the pending signal queue
+    int s = unblock_signals(&smask);
+    if (force_stop > 0) {
+        errno = force_stop;
+        return -1;
+    }
+    return s;
 }
