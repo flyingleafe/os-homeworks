@@ -29,13 +29,6 @@ buf_t *buf_new(size_t capacity) {
         return NULL;
     }
 
-    newbuf->data = malloc(capacity);
-
-    if (newbuf->data == NULL) {
-        free(newbuf);
-        return NULL;
-    }
-
     newbuf->data = (void*) newbuf + sizeof(buf_t);
     newbuf->capacity = capacity;
     newbuf->size = 0;
@@ -114,5 +107,65 @@ ssize_t buf_flush(fd_t fd, buf_t *buf, size_t required) {
     }
 
     RETHROW_IO(res);
+    return written;
+}
+
+ssize_t buf_getline(fd_t fd, buf_t *buf, char *dest) {
+    ABORT_IF(buf == NULL);
+    int len = 0;
+
+    while(1) {
+        for (int i = 0; i < buf->size; i++) {
+            if (((char*)buf->data)[i] == '\n') {
+                memcpy(dest, buf->data, i);
+                buf->size -= i + 1;
+
+                if (buf->size > 0) {
+                    memmove(buf->data, buf->data + i + 1, buf->size);
+                }
+
+                return len + i;
+            }
+        }
+
+        if (buf->size > 0) {
+            memcpy(dest, buf->data, buf->size);
+            dest += buf->size;
+            len += buf->size;
+            buf->size = 0;
+        }
+
+        int res = buf_fill(fd, buf, 1);
+        RETHROW_IO(res);
+
+        // got EOF
+        if (res < 1) {
+            return len;
+        }
+    }
+}
+
+ssize_t buf_write(fd_t fd, buf_t *buf, char *src, size_t len) {
+    int written = 0;
+
+    while(len > buf->capacity - buf->size) {
+        int rest = buf->capacity - buf->size;
+        int l = rest < len ? rest : len;
+
+        memcpy(buf->data + buf->size, src, l);
+        buf->size += l;
+        src += l;
+        len -= l;
+        int wr = buf_flush(fd, buf, buf->size);
+        RETHROW_IO(wr);
+        written += wr;
+    }
+
+    if(len > 0) {
+        memcpy(buf->data + buf->size, src, len);
+        buf->size += len;
+        written += len;
+    }
+
     return written;
 }
