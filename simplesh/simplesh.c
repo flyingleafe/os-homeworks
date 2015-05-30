@@ -95,8 +95,7 @@ int main(int argc, char *argv[]) {
                 perror("Error");
             }
 
-            int i;
-            for (i = 0; i < n; i++) {
+            for (int i = 0; i < n; i++) {
                 free_execargs(programs[i]);
             }
         }
