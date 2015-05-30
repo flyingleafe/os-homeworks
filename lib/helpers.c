@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
@@ -179,11 +180,9 @@ int exec(execargs_t* args) {
     if (pid == 0) {
         if (args->in_fd != -1) {
             RETHROW_IO(redirect_fd(args->in_fd, STDIN_FILENO));
-            RETHROW_IO(close(args->in_fd));
         }
         if (args->out_fd != -1) {
             RETHROW_IO(redirect_fd(args->out_fd, STDOUT_FILENO));
-            RETHROW_IO(close(args->out_fd));
         }
         int res = execvp(args->argv[0], args->argv);
         if (res == -1) {
@@ -224,49 +223,29 @@ int unblock_signals(const sigset_t *smask) {
 
 int runpiped(execargs_t** programs, size_t n) {
 
-    sigset_t smask;
+    sigset_t smask, oldmask;
     sigemptyset(&smask);
     sigaddset(&smask, SIGINT);
     sigaddset(&smask, SIGCHLD);
 
-    RETHROW_IO(sigprocmask(SIG_BLOCK, &smask, NULL));
+    RETHROW_IO(sigprocmask(SIG_BLOCK, &smask, &oldmask));
 
-    size_t i;
-    for (i = 1; i < n; i++) {
-        int s = pipe(&programs[i]->in_fd);
-        if (s == -1) {
-            // unblock signals
-            RETHROW_IO(unblock_signals(&smask));
-
-            // close all previously opened pipes
-            size_t j;
-            for (j = 1; j < i; j++) {
-                RETHROW_IO(close(programs[i]->in_fd));
-                RETHROW_IO(close(programs[i]->out_fd));
-            }
-            return -1;
-        }
-    }
-
-    // reposition input/output file descriptors for a program
-    for (i = 0; i < n - 1; i++) {
-        programs[i]->out_fd = programs[i + 1]->out_fd;
-    }
-    // last program writes to stdout
-    programs[n - 1]->out_fd = -1;
-
+    int pipefds[2];
     // start child processes
-    for (i = 0; i < n; i++) {
-        int pid = exec(programs[i]);
-        if (pid == -1) {
-            // unblock signals
-            RETHROW_IO(unblock_signals(&smask));
+    for (size_t i = 0; i < n; i++) {
+        if (i < n - 1) {
+            RETHROW_IO(pipe2(pipefds, O_CLOEXEC));
+            programs[i]->out_fd = pipefds[1];
+            programs[i + 1]->in_fd = pipefds[0];
+        }
 
-            // make sure all pipes are closed
-            for (i = i + 1; i < n; i++) {
-                RETHROW_IO(close(programs[i]->in_fd));
-                RETHROW_IO(close(programs[i]->out_fd));
-            }
+        RETHROW_IO(sigprocmask(SIG_SETMASK, &oldmask, NULL));
+        int pid = exec(programs[i]);
+        RETHROW_IO(sigprocmask(SIG_BLOCK, &smask, NULL));
+
+        if (pid == -1) {
+            close(pipefds[0]); // only that, because pipefds[1] is closed in exec() already
+            unblock_signals(&smask);
             return -1;
         }
     }
@@ -299,15 +278,14 @@ int runpiped(execargs_t** programs, size_t n) {
                 }
 
                 // mark process as finished
-                for (i = 0; i < n; i++) {
+                for (size_t i = 0; i < n; i++) {
                     if (programs[i]->pid == pid) {
                         programs[i]->pid = -1;
                         break;
                     }
                 }
 
-                if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-                    // if execve fails, we'll have errno in exit status
+                if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
                     force_stop = WEXITSTATUS(status);
                     break;
                 }
@@ -327,7 +305,7 @@ int runpiped(execargs_t** programs, size_t n) {
 
     if (force_stop) {
         // kill all children
-        for (i = 0; i < n; i++) {
+        for (size_t i = 0; i < n; i++) {
             if (programs[i]->pid != -1) {
                 int s = kill(programs[i]->pid, SIGKILL);
                 if (s == -1) {
@@ -348,7 +326,6 @@ int runpiped(execargs_t** programs, size_t n) {
         }
     }
 
-    // clear the pending signal queue
     int s = unblock_signals(&smask);
     if (force_stop > 0) {
         errno = force_stop;
