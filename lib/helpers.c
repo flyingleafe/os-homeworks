@@ -200,27 +200,6 @@ int exec(execargs_t* args) {
     return args->pid = pid;
 }
 
-int unblock_signals(const sigset_t *smask) {
-    struct timespec ts;
-    ts.tv_sec = 0;
-    ts.tv_nsec = 0;
-
-    siginfo_t siginfo;
-    int s = 0;
-    while(1) {
-        int sig = sigtimedwait(smask, &siginfo, &ts);
-        if (sig == -1) {
-            if (errno != EAGAIN) {
-                s = -1;
-            }
-            break;
-        }
-    }
-
-    RETHROW_IO(sigprocmask(SIG_UNBLOCK, smask, NULL));
-    return s;
-}
-
 int runpiped(execargs_t** programs, size_t n) {
 
     sigset_t smask, oldmask;
@@ -245,7 +224,7 @@ int runpiped(execargs_t** programs, size_t n) {
 
         if (pid == -1) {
             close(pipefds[0]); // only that, because pipefds[1] is closed in exec() already
-            unblock_signals(&smask);
+            sigprocmask(SIG_UNBLOCK, &smask, NULL);
             return -1;
         }
     }
@@ -258,7 +237,7 @@ int runpiped(execargs_t** programs, size_t n) {
     while (1) {
         int sig = sigwaitinfo(&smask, &siginfo);
         if (sig == -1) {
-            unblock_signals(&smask);
+            sigprocmask(SIG_UNBLOCK, &smask, NULL);
             return -1;
         } else if (sig == SIGCHLD) {
             int status;
@@ -309,7 +288,7 @@ int runpiped(execargs_t** programs, size_t n) {
             if (programs[i]->pid != -1) {
                 int s = kill(programs[i]->pid, SIGKILL);
                 if (s == -1) {
-                    unblock_signals(&smask);
+                    sigprocmask(SIG_UNBLOCK, &smask, NULL);
                     return -1;
                 }
                 int status;
@@ -319,14 +298,14 @@ int runpiped(execargs_t** programs, size_t n) {
                     if (errno == ECHILD) {
                         continue;
                     }
-                    unblock_signals(&smask);
+                    sigprocmask(SIG_UNBLOCK, &smask, NULL);
                     return -1;
                 }
             }
         }
     }
 
-    int s = unblock_signals(&smask);
+    int s = sigprocmask(SIG_UNBLOCK, &smask, NULL);
     if (force_stop > 0) {
         errno = force_stop;
         return -1;
