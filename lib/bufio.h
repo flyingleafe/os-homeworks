@@ -1,6 +1,8 @@
 #ifndef FLF_OS_BUFIO
 #define FLF_OS_BUFIO
 
+#include <sys/types.h>
+
 struct buf_t;
 typedef struct buf_t buf_t;
 typedef int fd_t;

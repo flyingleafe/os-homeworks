@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 
             close(remote);
             close(file);
-            _exit(0);
+            _exit(exit_status);
         }
 
         CATCH_IO(close(remote));
