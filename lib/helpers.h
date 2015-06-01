@@ -2,6 +2,7 @@
 #define FLF_OS_HELPERS
 
 #include <unistd.h>
+#include <netdb.h>
 
 #define CATCH_IO(res) if ((res) == -1) {        \
         report_error();                         \
@@ -14,6 +15,8 @@
 
 struct execargs_t;
 typedef struct execargs_t execargs_t;
+
+typedef struct addrinfo addrinfo;
 
 execargs_t* get_execargs(size_t argc);
 void free_execargs(execargs_t* ea);
@@ -29,6 +32,10 @@ int suppress_output(int fd);
 int restore_output(int fd, int storage);
 int exec(execargs_t* args);
 int runpiped(execargs_t** programs, size_t n);
+
+int make_server_socket(const char* port);
+int make_socket_from_addrinfo(addrinfo* info);
+
 void report_error();
 
 #endif

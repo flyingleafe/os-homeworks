@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -311,4 +312,47 @@ int runpiped(execargs_t** programs, size_t n) {
         return -1;
     }
     return s;
+}
+
+int make_socket_from_addrinfo(addrinfo* info) {
+    while (info) {
+        int sock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+        if (sock == -1) continue;
+
+        int dummy = 1;
+        int s = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &dummy, sizeof(dummy));
+        if (s == -1) {
+            RETHROW_IO(close(sock));
+            continue;
+        }
+
+        s = bind(sock, info->ai_addr, info->ai_addrlen);
+        if (s == 0) {
+            return sock;
+        }
+
+        RETHROW_IO(close(sock));
+        info = info->ai_next;
+    }
+
+    return -1;
+}
+
+int make_server_socket(const char* port) {
+    addrinfo *info, hints;
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_flags = AI_PASSIVE;
+
+    int s = getaddrinfo(NULL, port, &hints, &info);
+    if (s != 0) {
+        perror(gai_strerror(s));
+        return -1;
+    }
+
+    int sock = make_socket_from_addrinfo(info);
+    freeaddrinfo(info);
+    return sock;
 }

@@ -13,5 +13,6 @@ ssize_t buf_fill(fd_t fd, buf_t *buf, size_t required);
 ssize_t buf_flush(fd_t fd, buf_t *buf, size_t required);
 ssize_t buf_getline(fd_t fd, buf_t *buf, char *dest);
 ssize_t buf_write(fd_t fd, buf_t *buf, char *src, size_t len);
+int cat(fd_t input, fd_t output);
 
 #endif

@@ -149,7 +149,7 @@ ssize_t buf_write(fd_t fd, buf_t *buf, char *src, size_t len) {
     int written = 0;
 
     while(len > buf->capacity - buf->size) {
-        int rest = buf->capacity - buf->size;
+        size_t rest = buf->capacity - buf->size;
         int l = rest < len ? rest : len;
 
         memcpy(buf->data + buf->size, src, l);
@@ -168,4 +168,20 @@ ssize_t buf_write(fd_t fd, buf_t *buf, char *src, size_t len) {
     }
 
     return written;
+}
+
+int cat(fd_t input, fd_t output) {
+    buf_t* buf = buf_new(4096);
+    if (buf == NULL) {
+        return -1;
+    }
+
+    ssize_t res = 1;
+    while(res) {
+        RETHROW_IO(buf_fill(input, buf, 1));
+        RETHROW_IO(res = buf_flush(output, buf, buf_size(buf)));
+    }
+
+    buf_free(buf);
+    return 0;
 }
