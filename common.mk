@@ -14,9 +14,10 @@ all: $(PROGRAM)
 $(PROGRAM): $(PROGRAM).o libs
 	$(CC) -o $@ $< $(LDFLAGS)
 
-$(PROGRAM).o:
-	$(CC) -o $@ -c $(CFLAGS) $(PROGRAM).c
+%.o: %.c
+	$(CC) -o $@ -c $(CFLAGS) $<
 
+.PHONY: libs
 libs:
 	$(MAKE) -C $(LIBDIR)
 

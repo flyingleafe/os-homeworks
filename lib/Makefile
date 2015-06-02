@@ -18,7 +18,7 @@ define LIB_template
 lib$(1).so: $(1).o
 	$(CC) -o $$@ $$(subst _LIBNAME,$(1),$(LDFLAGS)) -shared $$<
 
-$(1).o:
+$(1).o: $(1).c
 	$(CC) -o $$@ -c $(CFLAGS) $(1).c
 
 endef
