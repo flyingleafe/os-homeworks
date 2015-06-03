@@ -19,7 +19,6 @@ void redirect_data(fd_t from, fd_t to) {
 
     close(from);
     close(to);
-    printf("Stop redirecting\n");
     _exit(exit_status);
 }
 
@@ -27,6 +26,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 3) {
         write_(STDOUT_FILENO, "Usage:\n    forking port1 port2\n", 33);
+        return 0;
     }
 
     int sock1, sock2;
