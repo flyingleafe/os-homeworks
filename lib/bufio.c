@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "bufio.h"
 #include "helpers.h"
@@ -178,8 +179,15 @@ int cat(fd_t input, fd_t output) {
 
     ssize_t res = 1;
     while(res) {
-        RETHROW_IO(buf_fill(input, buf, 1));
-        RETHROW_IO(res = buf_flush(output, buf, buf_size(buf)));
+        if (buf_fill(input, buf, 1) < 0) {
+            buf_free(buf);
+            return -1;
+        }
+        res = buf_flush(output, buf, buf_size(buf));
+        if (res < 0) {
+            buf_free(buf);
+            return -1;
+        }
     }
 
     buf_free(buf);
