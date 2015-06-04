@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 #include "bufio.h"
 #include "helpers.h"
 
@@ -59,7 +60,12 @@ ssize_t buf_fill(fd_t fd, buf_t *buf, size_t required) {
     int rest = required - buf->size;
     while(1) {
         res = read(fd, buf->data + buf->size, buf->capacity - buf->size);
-        RETHROW_IO(res);
+        if (res == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return buf->size;
+            }
+            return -1;
+        }
 
         if(res >= rest) {
             return buf->size += res;
@@ -107,7 +113,9 @@ ssize_t buf_flush(fd_t fd, buf_t *buf, size_t required) {
         memmove(buf, buf + written, buf->size);
     }
 
-    RETHROW_IO(res);
+    if (res == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        return -1;
+    }
     return written;
 }
 
