@@ -63,27 +63,30 @@ int remove_pair(int index) {
     index = lead(index);
     count -= 2;
 
-    // Swap fds
-    struct pollfd tmp = pollfds[index];
-    pollfds[index] = pollfds[count];
-    pollfds[count] = tmp;
-    tmp = pollfds[index + 1];
-    pollfds[index + 1] = pollfds[count + 1];
-    pollfds[count + 1] = tmp;
+    if (count != index) {
+        // Swap fds
+        struct pollfd tmp = pollfds[index];
+        pollfds[index] = pollfds[count];
+        pollfds[count] = tmp;
+        tmp = pollfds[index + 1];
+        pollfds[index + 1] = pollfds[count + 1];
+        pollfds[count + 1] = tmp;
 
-    // Swap valids
-    char tmpf = valid_in[index];
-    valid_in[index] = valid_in[count];
-    valid_in[count] = tmpf;
-    tmpf = valid_out[index];
-    valid_out[index] = valid_out[count];
-    valid_out[count] = tmpf;
+        // Swap valids
+        char tmpf = valid_in[index];
+        valid_in[index] = valid_in[count];
+        valid_in[count] = tmpf;
+        tmpf = valid_out[index];
+        valid_out[index] = valid_out[count];
+        valid_out[count] = tmpf;
 
-    // Swap buffs
-    pipebuf tmpb = buffs[(index - 2) / 2];
-    buffs[(index - 2) / 2] = buffs[(count - 2) / 2];
+        // Swap buffs
+        pipebuf tmpb = buffs[(index - 2) / 2];
+        buffs[(index - 2) / 2] = buffs[(count - 2) / 2];
+        buffs[(count - 2) / 2] = tmpb;
+    }
 
-    pipebuf_free(&tmpb);
+    pipebuf_free(&buffs[(count - 2) / 2]);
     RETHROW_IO(close(pollfds[count].fd));
     RETHROW_IO(close(pollfds[count + 1].fd));
     return 0;
@@ -123,13 +126,11 @@ int read_sock(int i) {
     int res = buf_fill(pollfds[i].fd, buf, 1);
     RETHROW_IO(res);
 
-    printf("filled buf: %d\n", res);
     // EOF
     if (res == prev_size) {
         // stop pollin
         pollfds[i].events &= ~POLLIN;
         valid_in[i] = 0;
-        RETHROW_IO(shutdown(pollfds[i].fd, SHUT_RD));
 
         if (!valid_out[i] || !valid_in[dual(i)]) {
             RETHROW_IO(remove_pair(i));
@@ -158,16 +159,13 @@ int write_sock(int i) {
         buf = buffs[(i - 2) / 2].in;
     }
 
-    printf("we have in buf: %d\n", buf_size(buf));
     int res = buf_flush(pollfds[i].fd, buf, buf_size(buf));
     RETHROW_IO(res);
 
-    printf("wrote buf: %d\n", res);
     // Error occured
     if (res == 0) {
         pollfds[i].events &= ~POLLOUT;
         valid_out[i] = 0;
-        RETHROW_IO(shutdown(pollfds[i].fd, SHUT_WR));
 
         if (!valid_in[i] || !valid_out[dual(i)]) {
             RETHROW_IO(remove_pair(i));
@@ -215,28 +213,21 @@ int main(int argc, char *argv[])
 
     while (1) {
         CATCH_IO(poll(pollfds, count, -1));
-        printf("got poll\n");
         if (pollfds[0].revents > 0) {
             CATCH_IO(accept_from(0, &remote1, &remote2));
-            printf("accepted 1\n");
         }
         if (pollfds[1].revents > 0) {
             CATCH_IO(accept_from(1, &remote2, &remote1));
-            printf("accepted 2\n");
         }
 
         int i;
         for (i = 2; i < count; i++) {
             if (pollfds[i].revents != 0) {
                 if ((pollfds[i].revents & POLLIN) != 0) {
-                    printf("read from %d-th sock, %d\n", i, pollfds[i].revents);
                     CATCH_IO(read_sock(i));
-                    printf("read!\n");
                 }
                 if ((pollfds[i].revents & POLLOUT) != 0) {
-                    printf("write to %d-th sock, %d\n", i, pollfds[i].revents);
                     CATCH_IO(write_sock(i));
-                    printf("write!\n");
                 }
             }
         }
