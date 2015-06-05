@@ -1,6 +1,6 @@
 CC=gcc
 LIBDIR=../lib
-CFLAGS=-I$(LIBDIR)
+CFLAGS=-I$(LIBDIR) -ggdb
 UNAME=$(shell uname -s)
 LDFLAGS=-L$(LIBDIR) $(foreach lib, $(LIBS),-l$(lib) )
 
