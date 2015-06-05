@@ -7,6 +7,8 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
+#include <strings.h>
+#include <signal.h>
 
 void redirect_data(fd_t from, fd_t to) {
     int exit_status = 0;
@@ -29,6 +31,12 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    struct sigaction sa;
+    bzero(&sa, sizeof(sa));
+    sa.sa_handler = SIG_IGN;
+    sa.sa_flags = SA_RESTART;
+    CATCH_IO(sigaction(SIGCHLD, &sa, NULL));
+ 
     int sock1, sock2;
     CATCH_IO(sock1 = make_server_socket(argv[1]));
     CATCH_IO(sock2 = make_server_socket(argv[2]));
@@ -58,11 +66,6 @@ int main(int argc, char *argv[])
 
         CATCH_IO(close(remote1));
         CATCH_IO(close(remote2));
-
-        int status;
-        while (pid > 0) {
-            pid = waitpid(-1, &status, WNOHANG);
-        }
     }
 
     CATCH_IO(close(sock1));
