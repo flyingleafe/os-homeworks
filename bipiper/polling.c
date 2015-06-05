@@ -141,6 +141,11 @@ int read_sock(int i) {
         // stop pollin
         pollfds[i].events &= ~POLLIN;
         valid_in[i] = 0;
+        
+        int s = shutdown(pollfds[i].fd, SHUT_RD);
+        if (s == -1 && errno != ENOTCONN) {
+            return -1;
+        }
 
         if (!valid_out[i] || !valid_in[dual(i)]) {
             RETHROW_IO(remove_pair(i));
@@ -176,6 +181,11 @@ int write_sock(int i) {
     if (res == 0) {
         pollfds[i].events &= ~POLLOUT;
         valid_out[i] = 0;
+        
+        int s = shutdown(pollfds[i].fd, SHUT_WR);
+        if (s == -1 && errno != ENOTCONN) {
+            return -1;
+        }
 
         if (!valid_in[i] || !valid_out[dual(i)]) {
             RETHROW_IO(remove_pair(i));
@@ -241,7 +251,16 @@ int main(int argc, char *argv[])
                 }
                 if (pollfds[i].revents & POLLHUP) {
                     // read the rest of data
-                    CATCH_IO(read_sock(i));
+                    int rs = 1;
+                    while (rs) {
+                        CATCH_IO(rs = read_sock(i));
+                    }
+                    // tell other end we don't want to read from it anymore
+                    rs = shutdown(pollfds[dual(i)].fd, SHUT_RD);
+                    if (rs == -1 && errno != ENOTCONN) {
+                        perror("shutdown");
+                        return 1;
+                    }
                     // and then just ignore it
                     valid_in[i] = 0;
                     valid_out[i] = 0;

@@ -60,6 +60,7 @@ ssize_t buf_fill(fd_t fd, buf_t *buf, size_t required) {
     int rest = required - buf->size;
     while(1) {
         res = read(fd, buf->data + buf->size, buf->capacity - buf->size);
+        
         if (res == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 return buf->size;
@@ -89,7 +90,6 @@ ssize_t buf_flush(fd_t fd, buf_t *buf, size_t required) {
     int written = 0;
     while(1) {
         res = write(fd, buf->data + written, buf->size - written);
-
         if(res == -1) {
             break;
         }
