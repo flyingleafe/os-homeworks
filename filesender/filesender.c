@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <strings.h>
+#include <signal.h>
 #include <bufio.h>
 
 int main(int argc, char *argv[])
@@ -16,6 +17,12 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    struct sigaction sa;
+    bzero(&sa, sizeof(sa));
+    sa.sa_handler = SIG_IGN;
+    sa.sa_flags = SA_RESTART;
+    CATCH_IO(sigaction(SIGCHLD, &sa, NULL));
+    
     CATCH_IO(access(argv[2], R_OK | F_OK));
 
     int sock;
@@ -47,11 +54,6 @@ int main(int argc, char *argv[])
         }
 
         CATCH_IO(close(remote));
-
-        int status;
-        while (pid > 0) {
-            pid = waitpid(-1, &status, WNOHANG);
-        }
     }
 
     CATCH_IO(close(sock));
