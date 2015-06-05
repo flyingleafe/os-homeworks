@@ -50,8 +50,12 @@ void add_pair(int fd1, int fd2) {
     pollfds[count].fd = fd1;
     pollfds[count + 1].fd = fd2;
     pollfds[count].events = pollfds[count + 1].events = POLLIN;
+    pollfds[count].revents = pollfds[count + 1].revents = 0;
 
     buffs[(count - 2) / 2] = pipebuf_new(4096);
+    valid_in[count] = valid_in[count + 1] = 1;
+    valid_out[count] = valid_out[count + 1] = 1;
+
     count += 2;
 
     // stop ignoring both acceptfds
@@ -87,8 +91,8 @@ int remove_pair(int index) {
     }
 
     pipebuf_free(&buffs[(count - 2) / 2]);
-    RETHROW_IO(close(pollfds[count].fd));
-    RETHROW_IO(close(pollfds[count + 1].fd));
+    RETHROW_IO(close(abs(pollfds[count].fd)));
+    RETHROW_IO(close(abs(pollfds[count + 1].fd)));
     return 0;
 }
 
@@ -120,6 +124,12 @@ int read_sock(int i) {
         buf = buffs[(i - 2) / 2].in;
     } else {
         buf = buffs[(i - 2) / 2].out;
+    }
+
+    // Remote end has stopped - we have nothing to do here
+    if (pollfds[dual(i)].fd < 0) {
+        RETHROW_IO(remove_pair(i));
+        return 0;
     }
 
     size_t prev_size = buf_size(buf);
@@ -223,11 +233,19 @@ int main(int argc, char *argv[])
         int i;
         for (i = 2; i < count; i++) {
             if (pollfds[i].revents != 0) {
-                if ((pollfds[i].revents & POLLIN) != 0) {
+                if (pollfds[i].revents & POLLIN) {
                     CATCH_IO(read_sock(i));
                 }
-                if ((pollfds[i].revents & POLLOUT) != 0) {
+                if (pollfds[i].revents & POLLOUT) {
                     CATCH_IO(write_sock(i));
+                }
+                if (pollfds[i].revents & POLLHUP) {
+                    // read the rest of data
+                    CATCH_IO(read_sock(i));
+                    // and then just ignore it
+                    valid_in[i] = 0;
+                    valid_out[i] = 0;
+                    pollfds[i].fd = -pollfds[i].fd;
                 }
             }
         }
