@@ -11,8 +11,14 @@ endif
 .PHONY: all
 all: $(PROGRAM)
 
-$(PROGRAM): $(PROGRAM).o libs
-	$(CC) -o $@ $< $(LDFLAGS)
+define PROG_TEMPLATE
+
+$(1): $(1).o libs
+	$(CC) -o $$@ $$< $(LDFLAGS)
+
+endef
+
+$(foreach prog, $(PROGRAM), $(eval $(call PROG_TEMPLATE,$(prog))))
 
 %.o: %.c
 	$(CC) -o $@ -c $(CFLAGS) $<
