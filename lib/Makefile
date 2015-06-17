@@ -1,6 +1,6 @@
 CC=gcc
 LIBDIR=$(shell pwd)
-CFLAGS=--std=c11 -Wall -fPIC -ggdb
+CFLAGS=--std=c99 -Wall -fPIC -ggdb
 LDFLAGS=
 UNAME = $(shell uname -s)
 
